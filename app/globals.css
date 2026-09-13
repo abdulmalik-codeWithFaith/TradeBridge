@@ -1,0 +1,192 @@
+/* @import "tailwindcss"; */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #10203b;
+  --ink-light: #1b3358;
+  --ink-border: #2a4570;
+  --paper: #ffffff;
+  --sand: #ede7d9;
+  --sand-border: #ddd4bd;
+  --marigold: #e8a33d;
+  --marigold-dark: #c9821f;
+  --clay: #b8542f;
+  --leaf: #3d6b4c;
+  --ink-muted: rgba(16, 32, 59, 0.64);
+  --paper-muted: rgba(255, 255, 255, 0.72);
+
+  --font-heading: var(--font-fraunces), "Iowan Old Style", serif;
+  --font-body: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.container-page {
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .container-page {
+    padding-inline: 2.5rem;
+  }
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: var(--marigold);
+  color: var(--ink);
+}
+
+.btn-primary:hover {
+  background: var(--marigold-dark);
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: var(--ink-border);
+  color: var(--paper);
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.btn-ink {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.btn-ink:hover {
+  background: var(--ink-light);
+}
+
+:focus-visible {
+  outline: 2px solid var(--marigold);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Ticket perforation edge for the hero mockup */
+.ticket-notch::before,
+.ticket-notch::after {
+  content: "";
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  background: var(--ink);
+  border-radius: 999px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.ticket-notch::before {
+  left: -14px;
+}
+
+.ticket-notch::after {
+  right: -14px;
+}
+
+.ticket-divider {
+  border-top: 1.5px dashed var(--ink-border);
+}
+
+/* Currency marquee */
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: scroll-left 32s linear infinite;
+}
+
+@keyframes scroll-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Hero card entrance — single orchestrated moment */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in {
+    animation: none;
+  }
+}
