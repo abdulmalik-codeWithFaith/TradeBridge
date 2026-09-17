@@ -81,10 +81,10 @@ export default function Home() {
             <a href="#countries" className="hover:text-[var(--ink)]">Countries</a>
           </nav>
           <div className="flex items-center gap-3">
-            <a href="#" className="hidden text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] sm:block">
+            <a href="/login" className="hidden text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] sm:block">
               Log in
             </a>
-            <a href="#get-started" className="btn btn-primary text-sm">Get started</a>
+            <a href="/get-started" className="btn btn-primary text-sm">Get started</a>
           </div>
         </div>
       </header>
@@ -102,7 +102,7 @@ export default function Home() {
               stops feeling like a risk.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-4">
-              <a href="#get-started" className="btn btn-primary">Start a trade</a>
+              <a href="/get-started" className="btn btn-primary">Start a trade</a>
               <a href="#how-it-works" className="btn btn-outline">See how it works</a>
             </div>
             <dl className="mt-14 grid max-w-md grid-cols-3 gap-6 border-t border-[var(--ink-border)] pt-8">
@@ -367,7 +367,7 @@ export default function Home() {
                 Payment released once the transaction is confirmed complete
               </li>
             </ul>
-            <a href="#get-started" className="btn btn-primary mt-9">Start selling</a>
+            <a href="/get-started" className="btn btn-primary mt-9">Start selling</a>
           </div>
         </div>
       </section>
