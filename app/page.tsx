@@ -96,7 +96,7 @@ export default function Home() {
             <h1 className="text-[2.6rem] leading-[1.05] sm:text-6xl">
               Buy and sell across Africa without the guesswork.
             </h1>
-            <p className="mt-6 max-w-md text-lg text-[var(--paper-muted)]">
+            <p className="mt-9 max-w-md text-lg text-[var(--paper-muted)]">
               TradeBridge brings seller verification, local-currency payment, delivery
               protection, and disputes into one transaction — so crossing a border
               stops feeling like a risk.

@@ -2,12 +2,17 @@ import type { Timestamp } from "firebase/firestore";
 
 export type UserRole = "buyer" | "seller";
 
+export type KycStatus = "none" | "pending" | "verified" | "rejected" | "needs_review";
+
 export interface UserProfile {
   uid: string;
   email: string | null;
   displayName: string | null;
   role: UserRole;
   verified: boolean;
+  kycStatus?: KycStatus;
+  kycJobId?: string;
+  kycReason?: string;
   createdAt: Timestamp;
 }
 
@@ -41,10 +46,32 @@ export interface Order {
   exchangeRate: number; // amountBuyerCurrency / amountSellerCurrency, snapshotted at creation
 
   status: OrderStatus;
+  listingId?: string;
 
   shippingProof?: OrderProof;
   deliveryProof?: OrderProof;
 
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface Listing {
+  id: string;
+  sellerId: string;
+  // Denormalized from the seller's profile at write time so the discovery
+  // page can be read publicly without also needing public access to
+  // `users/{uid}`. Can go slightly stale until the seller edits the listing
+  // again — acceptable for now, worth a refresh job later.
+  sellerName: string;
+  sellerVerified: boolean;
+
+  title: string;
+  description: string;
+  currency: string;
+  price: number;
+  imageUrl?: string;
+
+  active: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

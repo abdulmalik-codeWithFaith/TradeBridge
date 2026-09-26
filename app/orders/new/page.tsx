@@ -1,18 +1,30 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import type { UserProfile } from "@/lib/types";
+import type { Listing, UserProfile } from "@/lib/types";
 import { convert, SUPPORTED_CURRENCIES, type SupportedCurrency } from "@/lib/fx";
 
 export default function NewOrderPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewOrderForm />
+    </Suspense>
+  );
+}
+
+function NewOrderForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listingId = searchParams.get("listingId");
 
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [listingError, setListingError] = useState<string | null>(null);
 
   const [counterpartyEmail, setCounterpartyEmail] = useState("");
   const [itemDescription, setItemDescription] = useState("");
@@ -40,6 +52,21 @@ export default function NewOrderPage() {
     });
   }, [authUser]);
 
+  useEffect(() => {
+    if (!listingId) return;
+    getDoc(doc(db, "listings", listingId)).then((snap) => {
+      if (!snap.exists() || !(snap.data() as Listing).active) {
+        setListingError("This listing isn't available anymore.");
+        return;
+      }
+      const data = { id: snap.id, ...snap.data() } as Listing;
+      setListing(data);
+      setItemDescription(data.title);
+      setSellerCurrency(data.currency as SupportedCurrency);
+      setAmountSellerCurrency(String(data.price));
+    });
+  }, [listingId]);
+
   // Auto-fill the buyer amount from the seller amount + currencies, unless
   // the person has manually edited it.
   useEffect(() => {
@@ -62,51 +89,68 @@ export default function NewOrderPage() {
   }
   if (!authUser) return null;
 
-  const myRole = profile?.role;
+  const myRole = listing ? "buyer" : profile?.role;
   const otherRole = myRole === "buyer" ? "seller" : "buyer";
+  const roleMismatch = listing && profile && profile.role !== "buyer";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
 
+    if (roleMismatch) {
+      setError("Only buyer accounts can order from a listing.");
+      return;
+    }
     if (!authUser || !myRole) {
       setError("Your profile is still loading — try again in a moment.");
       return;
     }
-    if (!counterpartyEmail.trim() || !itemDescription.trim() || !amountSellerCurrency || !amountBuyerCurrency) {
+    if (!itemDescription.trim() || !amountSellerCurrency || !amountBuyerCurrency) {
+      setError("Fill in every field before creating the order.");
+      return;
+    }
+    if (!listing && !counterpartyEmail.trim()) {
       setError("Fill in every field before creating the order.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("email", "==", counterpartyEmail.trim().toLowerCase()));
-      const results = await getDocs(q);
+      let buyerId: string;
+      let sellerId: string;
 
-      if (results.empty) {
-        setError(
-          `No ${otherRole} found with that email. They'll need a TradeBridge account first.`
-        );
-        setSubmitting(false);
-        return;
+      if (listing) {
+        buyerId = authUser.uid;
+        sellerId = listing.sellerId;
+      } else {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", counterpartyEmail.trim().toLowerCase()));
+        const results = await getDocs(q);
+
+        if (results.empty) {
+          setError(
+            `No ${otherRole} found with that email. They'll need a TradeBridge account first.`
+          );
+          setSubmitting(false);
+          return;
+        }
+
+        const counterparty = results.docs[0].data() as UserProfile;
+
+        if (counterparty.uid === authUser.uid) {
+          setError("You can't create an order with yourself.");
+          setSubmitting(false);
+          return;
+        }
+        if (counterparty.role !== otherRole) {
+          setError(`That account is registered as a ${counterparty.role}, not a ${otherRole}.`);
+          setSubmitting(false);
+          return;
+        }
+
+        buyerId = myRole === "buyer" ? authUser.uid : counterparty.uid;
+        sellerId = myRole === "seller" ? authUser.uid : counterparty.uid;
       }
-
-      const counterparty = results.docs[0].data() as UserProfile;
-
-      if (counterparty.uid === authUser.uid) {
-        setError("You can't create an order with yourself.");
-        setSubmitting(false);
-        return;
-      }
-      if (counterparty.role !== otherRole) {
-        setError(`That account is registered as a ${counterparty.role}, not a ${otherRole}.`);
-        setSubmitting(false);
-        return;
-      }
-
-      const buyerId = myRole === "buyer" ? authUser.uid : counterparty.uid;
-      const sellerId = myRole === "seller" ? authUser.uid : counterparty.uid;
 
       const sellerAmt = parseFloat(amountSellerCurrency);
       const buyerAmt = parseFloat(amountBuyerCurrency);
@@ -121,6 +165,7 @@ export default function NewOrderPage() {
         amountBuyerCurrency: buyerAmt,
         exchangeRate: buyerAmt / sellerAmt,
         status: "pending_payment",
+        ...(listing ? { listingId: listing.id } : {}),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -151,26 +196,46 @@ export default function NewOrderPage() {
         <h1 className="text-3xl" style={{ fontFamily: "var(--font-heading)" }}>
           Create an order
         </h1>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">
-          {myRole
-            ? `You're creating this as the ${myRole}. Enter the ${otherRole}'s email to bring them into the trade.`
-            : "Loading your account…"}
-        </p>
+
+        {listingError && (
+          <p className="mt-3 text-sm text-[var(--clay)]">{listingError}</p>
+        )}
+
+        {listing ? (
+          <div className="mt-4 rounded-2xl bg-[var(--sand)] p-4 text-sm">
+            <p className="font-medium">{listing.title}</p>
+            <p className="mt-1 text-[var(--ink-muted)]">Sold by {listing.sellerName}</p>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            {myRole
+              ? `You're creating this as the ${myRole}. Enter the ${otherRole}'s email to bring them into the trade.`
+              : "Loading your account…"}
+          </p>
+        )}
+
+        {roleMismatch && (
+          <p className="mt-3 text-sm text-[var(--clay)]">
+            Only buyer accounts can order from a listing.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
-          <div>
-            <label htmlFor="counterpartyEmail" className="text-sm font-medium">
-              {otherRole === "seller" ? "Seller's" : "Buyer's"} email
-            </label>
-            <input
-              id="counterpartyEmail"
-              type="email"
-              value={counterpartyEmail}
-              onChange={(e) => setCounterpartyEmail(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)]"
-              placeholder="them@example.com"
-            />
-          </div>
+          {!listing && (
+            <div>
+              <label htmlFor="counterpartyEmail" className="text-sm font-medium">
+                {otherRole === "seller" ? "Seller's" : "Buyer's"} email
+              </label>
+              <input
+                id="counterpartyEmail"
+                type="email"
+                value={counterpartyEmail}
+                onChange={(e) => setCounterpartyEmail(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)]"
+                placeholder="them@example.com"
+              />
+            </div>
+          )}
 
           <div>
             <label htmlFor="itemDescription" className="text-sm font-medium">
@@ -181,7 +246,8 @@ export default function NewOrderPage() {
               type="text"
               value={itemDescription}
               onChange={(e) => setItemDescription(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)]"
+              disabled={!!listing}
+              className="mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)] disabled:opacity-60"
               placeholder="40 yards of Ankara fabric"
             />
           </div>
@@ -195,7 +261,8 @@ export default function NewOrderPage() {
                 id="sellerCurrency"
                 value={sellerCurrency}
                 onChange={(e) => setSellerCurrency(e.target.value as SupportedCurrency)}
-                className="mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)]"
+                disabled={!!listing}
+                className="mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)] disabled:opacity-60"
               >
                 {SUPPORTED_CURRENCIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -213,7 +280,8 @@ export default function NewOrderPage() {
                 step="0.01"
                 value={amountSellerCurrency}
                 onChange={(e) => setAmountSellerCurrency(e.target.value)}
-                className="tnum mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)]"
+                disabled={!!listing}
+                className="tnum mt-1.5 w-full rounded-xl border border-[var(--sand-border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--ink)] disabled:opacity-60"
                 placeholder="150000"
               />
             </div>
@@ -266,7 +334,7 @@ export default function NewOrderPage() {
 
           <button
             type="submit"
-            disabled={submitting || !myRole}
+            disabled={submitting || !myRole || !!roleMismatch}
             className="btn btn-primary w-full disabled:opacity-60"
           >
             {submitting ? "Creating order…" : "Create order"}
